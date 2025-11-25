@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Happy Birthday!</title>
+    <!-- Neue Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Roboto+Slab:wght@400;700&family=Indie+Flower&display=swap" rel="stylesheet">
+    <style>
+        /* Neuer animierter Hintergrund */
+        body {
+            background: linear-gradient(270deg, #00C9FF, #92FE9D, #FF6A00, #EE0979);
+            background-size: 800% 800%;
+            animation: gradientShift 20s ease infinite;
+            color: #F0F8FF; /* AliceBlue */
+            font-family: 'Roboto Slab', serif;
+            padding: 2rem;
+            overflow: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Fade-In für die Hauptüberschrift */
+        h1 {
+            color: #FFD700; /* Gold */
+            font-family: 'Pacifico', cursive;
+            font-size: 3.5rem;
+            opacity: 0;
+            animation: fadeIn 2s ease-in forwards;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        h2 {
+            color: #00FA9A; /* MediumSpringGreen */
+            font-family: 'Roboto Slab', serif;
+            font-size: 2rem;
+            margin-top: 2rem;
+            text-decoration: underline; 
+        }
+
+        h3 {
+            color: #FF69B4; /* HotPink */
+            font-family: 'Indie Flower', cursive;
+            font-size: 1.8rem;
+            margin: 0.5rem 0;
+        }
+
+        img {
+            border-radius: 10px;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 0 15px rgba(255,255,255,0.6);
+        }
+
+        button {
+            background-color: #FF4500; /* OrangeRed */
+            color: #FFFFFF;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1.3rem;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            font-family: 'Pacifico', cursive;
+        }
+
+        button::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -75%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent);
+            transform: skewX(-20deg);
+        }
+
+        button:hover::after {
+            animation: shine 0.8s forwards;
+        }
+
+        @keyframes shine {
+            100% { left: 125%; }
+        }
+
+        /* Konfetti */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            opacity: 0.8;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Alles Gute zum Geburtstag!</h1>
+    <img src="p1" width="250" alt="Foto von Papa, 2025">
+
+    <h3>Дорогой папа!</h3>
+    <h3>Я поздравляю тебя с днём рождения!</h3>
+    <h3>Будь здоров и счастлив!</h3>
+    <h3>Остальное можно себе купить ;)</h3>
+    <h2>гав!!!!!</h2>
+    <img src="p2" width="250" alt="GAV!!!!!!">
+    <p>9.12.2025</p>
+
+    <button>🎁 Überraschung!</button>
+
+    <script>
+        // Konfetti erzeugen
+        function createConfetti() {
+            const confetti = document.createElement("div");
+            confetti.classList.add("confetti");
+            document.body.appendChild(confetti);
+
+            confetti.style.left = Math.random() * window.innerWidth + "px";
+            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+
+            const duration = Math.random() * 3 + 2;
+            confetti.style.animationDuration = duration + "s";
+
+            setTimeout(() => {
+                confetti.remove();
+            }, duration * 1000);
+        }
+
+        setInterval(createConfetti, 200);
+    </script>
+</body>
+</html>
