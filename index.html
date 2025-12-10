@@ -12,6 +12,7 @@
         margin-top: 10px;
         font-size: 18px;
         color: #444;
+        white-space: pre-wrap;
     }
     video {
         margin-top: 20px;
@@ -85,6 +86,16 @@ document.getElementById("generateBtn").onclick = async () => {
             size: "1280x720"
         });
 
+        /* ✅ PATCH: RAW‑RESULT anzeigen */
+        console.log("RAW RESULT:", video);
+
+        // Wenn Puter ein Fehlerobjekt zurückgibt statt eines Videos
+        if (video && video.success === false) {
+            console.log("PUTER ERROR DETAILS:", video.error);
+            status.textContent = "Puter Fehler:\n" + JSON.stringify(video.error, null, 2);
+            return;
+        }
+
         status.textContent = "Video fertig!";
         output.appendChild(video);
 
@@ -93,8 +104,16 @@ document.getElementById("generateBtn").onclick = async () => {
         });
 
     } catch (err) {
-        status.textContent = "Fehler beim Generieren: " + err.message;
-        console.error(err);
+
+        /* ✅ PATCH: Vollständiges Error‑Objekt anzeigen */
+        console.error("FULL ERROR OBJECT:", err);
+
+        if (err?.error) {
+            console.log("PUTER ERROR DETAILS:", err.error);
+            status.textContent = "Puter Fehler:\n" + JSON.stringify(err.error, null, 2);
+        } else {
+            status.textContent = "Fehler beim Generieren: " + (err?.message || "undefined");
+        }
     }
 };
 </script>
