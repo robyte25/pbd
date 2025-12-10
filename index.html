@@ -1,122 +1,93 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>Puter Sora Video Generator</title>
-<style>
+  <meta charset="UTF-8">
+  <title>Open‑Source Video Generator</title>
+  <style>
     body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      padding: 40px;
     }
-    #status {
-        margin-top: 10px;
-        font-size: 18px;
-        color: #444;
-        white-space: pre-wrap;
+    input, button {
+      padding: 12px;
+      font-size: 18px;
+      width: 80%;
+      max-width: 600px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
     }
     video {
-        margin-top: 20px;
-        width: 100%;
-        max-width: 720px;
-        border-radius: 10px;
+      margin-top: 30px;
+      width: 80%;
+      max-width: 700px;
+      border-radius: 10px;
     }
-</style>
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #ccc;
+    }
+  </style>
 </head>
 <body>
 
-<h2>KI‑Video generieren</h2>
+  <h1>Open‑Source Video Generator</h1>
+  <p>Gib einen Prompt ein und generiere ein Video mit OpenSora (kostenlos & ohne Server)</p>
 
-<input id="prompt" type="text" placeholder="Beschreibe dein Video..." style="width:100%; padding:10px;">
-<button id="generateBtn" style="margin-top:10px; padding:10px 20px;">Video generieren</button>
+  <input id="prompt" placeholder="z.B. A robot dancing in neon lights">
+  <button onclick="generateVideo()">Video generieren</button>
 
-<div id="status"></div>
-<div id="output"></div>
+  <div id="status"></div>
 
-<!-- Puter SDK -->
-<script src="https://js.puter.com/v2/" defer></script>
+  <video id="video" controls></video>
 
-<script>
-document.getElementById("generateBtn").onclick = async () => {
-    const prompt = document.getElementById("prompt").value.trim();
-    const status = document.getElementById("status");
-    const output = document.getElementById("output");
+  <script>
+    async function generateVideo() {
+      const prompt = document.getElementById("prompt").value;
+      const status = document.getElementById("status");
+      const video = document.getElementById("video");
 
-    status.textContent = "";
-    output.innerHTML = "";
-
-    if (!prompt) {
-        status.textContent = "Bitte gib eine Videobeschreibung ein.";
+      if (!prompt) {
+        status.innerText = "Bitte gib einen Prompt ein.";
         return;
-    }
+      }
 
-    /* -------------------------------
-       ✅ DEBUG 1: Ist puter geladen?
-    --------------------------------*/
-    console.log("DEBUG → puter:", window.puter);
-    if (!window.puter) {
-        status.textContent = "Fehler: puter ist undefined (SDK nicht geladen oder blockiert).";
-        return;
-    }
+      status.innerText = "Video wird generiert... das kann 20–60 Sekunden dauern.";
 
-    /* --------------------------------------
-       ✅ DEBUG 2: Ist puter.ai verfügbar?
-    ---------------------------------------*/
-    console.log("DEBUG → puter.ai:", window.puter.ai);
-    if (!window.puter.ai) {
-        status.textContent = "Fehler: puter.ai ist undefined (AI‑Modul nicht verfügbar).";
-        return;
-    }
-
-    /* ---------------------------------------------------
-       ✅ DEBUG 3: Ist puter.ai.txt2vid verfügbar?
-    ----------------------------------------------------*/
-    console.log("DEBUG → puter.ai.txt2vid:", window.puter.ai.txt2vid);
-    if (!window.puter.ai.txt2vid) {
-        status.textContent = "Fehler: puter.ai.txt2vid ist undefined (Video‑Feature nicht verfügbar).";
-        return;
-    }
-
-    // Wenn alle Debug‑Checks bestanden sind → Video generieren
-    status.textContent = "Video wird generiert... das kann 1–2 Minuten dauern.";
-
-    try {
-        const video = await puter.ai.txt2vid(prompt, {
-            model: "sora-2-pro",
-            seconds: 12,
-            size: "1280x720"
-        });
-
-        /* ✅ PATCH: RAW‑RESULT anzeigen */
-        console.log("RAW RESULT:", video);
-
-        // Wenn Puter ein Fehlerobjekt zurückgibt statt eines Videos
-        if (video && video.success === false) {
-            console.log("PUTER ERROR DETAILS:", video.error);
-            status.textContent = "Puter Fehler:\n" + JSON.stringify(video.error, null, 2);
-            return;
+      const response = await fetch(
+        "https://huggingface.co/spaces/opensora-team/opensora/api/predict/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data: [prompt]
+          })
         }
+      );
 
-        status.textContent = "Video fertig!";
-        output.appendChild(video);
+      const result = await response.json();
 
-        video.addEventListener("loadeddata", () => {
-            video.play().catch(() => {});
-        });
-
-    } catch (err) {
-
-        /* ✅ PATCH: Vollständiges Error‑Objekt anzeigen */
-        console.error("FULL ERROR OBJECT:", err);
-
-        if (err?.error) {
-            console.log("PUTER ERROR DETAILS:", err.error);
-            status.textContent = "Puter Fehler:\n" + JSON.stringify(err.error, null, 2);
-        } else {
-            status.textContent = "Fehler beim Generieren: " + (err?.message || "undefined");
-        }
+      try {
+        const videoUrl = result.data[0].url;
+        video.src = videoUrl;
+        status.innerText = "Fertig! Video unten ansehen.";
+      } catch (e) {
+        status.innerText = "Fehler: API hat kein Video zurückgegeben.";
+      }
     }
-};
-</script>
+  </script>
 
 </body>
 </html>
