@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Open‑Source Video Generator</title>
+  <title>Text-zu-Video Generator</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -39,53 +39,92 @@
       font-size: 18px;
       color: #ccc;
     }
+    #debug {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #888;
+      text-align: left;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #222;
+      padding: 10px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Open‑Source Video Generator</h1>
-  <p>Gib einen Prompt ein und generiere ein Video mit OpenSora (kostenlos & ohne Server)</p>
+  <h1>Text-zu-Video Generator (Open Source)</h1>
+  <p>Gib einen Prompt ein – die Seite testet automatisch mehrere kostenlose APIs.</p>
 
   <input id="prompt" placeholder="z.B. A robot dancing in neon lights">
   <button onclick="generateVideo()">Video generieren</button>
 
   <div id="status"></div>
-
   <video id="video" controls></video>
+  <div id="debug"></div>
 
   <script>
+    const apis = [
+      "https://huggingface.co/spaces/damo-vilab/modelscope-text-to-video-synthesis/api/predict/",
+      "https://huggingface.co/spaces/cerspense/zeroscope_v2_576w/api/predict/",
+      "https://huggingface.co/spaces/pyramid-flow/PyramidFlow-Video/api/predict/"
+    ];
+
     async function generateVideo() {
-      const prompt = document.getElementById("prompt").value;
+      const prompt = document.getElementById("prompt").value.trim();
       const status = document.getElementById("status");
       const video = document.getElementById("video");
+      const debug = document.getElementById("debug");
 
       if (!prompt) {
         status.innerText = "Bitte gib einen Prompt ein.";
         return;
       }
 
-      status.innerText = "Video wird generiert... das kann 20–60 Sekunden dauern.";
+      status.innerText = "Teste verfügbare APIs...";
+      video.src = "";
+      debug.innerText = "";
 
-      const response = await fetch(
-        "https://huggingface.co/spaces/opensora-team/opensora/api/predict/",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            data: [prompt]
-          })
+      for (let api of apis) {
+        try {
+          status.innerText = "Versuche API:\n" + api;
+
+          const response = await fetch(api, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: [prompt] })
+          });
+
+          const text = await response.text();
+          debug.innerText = "API: " + api + "\n\n" + text;
+
+          const result = JSON.parse(text);
+          let videoUrl = null;
+
+          if (result && Array.isArray(result.data)) {
+            if (typeof result.data[0] === "string") {
+              videoUrl = result.data[0];
+            } else if (result.data[0]?.url) {
+              videoUrl = result.data[0].url;
+            } else if (Array.isArray(result.data[0]?.video)) {
+              videoUrl = result.data[0].video[0];
+            }
+          }
+
+          if (videoUrl) {
+            video.src = videoUrl;
+            status.innerText = "Fertig! Video unten ansehen.";
+            return;
+          }
+        } catch (err) {
+          debug.innerText += "\nFehler bei API: " + api + "\n" + err.message;
         }
-      );
-
-      const result = await response.json();
-
-      try {
-        const videoUrl = result.data[0].url;
-        video.src = videoUrl;
-        status.innerText = "Fertig! Video unten ansehen.";
-      } catch (e) {
-        status.innerText = "Fehler: API hat kein Video zurückgegeben.";
       }
+
+      status.innerText = "Keine funktionierende API gefunden.";
     }
   </script>
 
