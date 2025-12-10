@@ -1,50 +1,71 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <title>Puter txt2vid Demo</title>
-    <style>
-        body {
-            background: #111;
-            color: #eee;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px;
-        }
-        video {
-            margin-top: 20px;
-            border-radius: 12px;
-            box-shadow: 0 0 20px rgba(255,255,255,0.2);
-        }
-    </style>
+<meta charset="UTF-8">
+<title>KI Video Generator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+    }
+    #status {
+        margin-top: 10px;
+        font-size: 18px;
+        color: #444;
+    }
+    video {
+        margin-top: 20px;
+        width: 100%;
+        max-width: 720px;
+        border-radius: 10px;
+    }
+</style>
 </head>
 <body>
 
-    <h1>Puter AI Video Generator</h1>
-    <p>Generiert automatisch ein Video und spielt es ab.</p>
+<h2>KI‑Video generieren</h2>
 
-    <script src="https://js.puter.com/v2/"></script>
-    <script>
-        puter.ai.txt2vid("A fox sprinting through a snow-covered forest at dusk", {
+<input id="prompt" type="text" placeholder="Beschreibe dein Video..." style="width:100%; padding:10px;">
+<button id="generateBtn" style="margin-top:10px; padding:10px 20px;">Video generieren</button>
+
+<div id="status"></div>
+<div id="output"></div>
+
+<script src="https://js.puter.com/v2/"></script>
+<script>
+document.getElementById("generateBtn").onclick = async () => {
+    const prompt = document.getElementById("prompt").value.trim();
+    const status = document.getElementById("status");
+    const output = document.getElementById("output");
+
+    if (!prompt) {
+        status.textContent = "Bitte gib eine Videobeschreibung ein.";
+        return;
+    }
+
+    status.textContent = "Video wird generiert... das kann 1–2 Minuten dauern.";
+    output.innerHTML = "";
+
+    try {
+        const video = await puter.ai.txt2vid(prompt, {
             model: "sora-2-pro",
-            seconds: 8,
+            seconds: 12,
             size: "1280x720"
-        }).then((video) => {
-            document.body.appendChild(video);
-
-            // Autoplay sobald Daten geladen sind
-            video.addEventListener('loadeddata', () => {
-                video.play().catch(() => {});
-            });
-        }).catch(err => {
-            console.error(err);
-            const msg = document.createElement("p");
-            msg.textContent = "Fehler beim Generieren des Videos.";
-            document.body.appendChild(msg);
         });
-    </script>
+
+        status.textContent = "Video fertig!";
+        output.appendChild(video);
+
+        video.addEventListener("loadeddata", () => {
+            video.play().catch(() => {});
+        });
+
+    } catch (err) {
+        status.textContent = "Fehler: " + err.message;
+        console.error(err);
+    }
+};
+</script>
 
 </body>
 </html>
