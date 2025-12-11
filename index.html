@@ -1,378 +1,69 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Text → Bild → Video (Multi-API, Debug)</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      text-align: center;
-      padding: 30px;
-    }
-    input, button, textarea {
-      padding: 10px;
-      font-size: 16px;
-      width: 90%;
-      max-width: 800px;
-      margin-top: 8px;
-      border-radius: 8px;
-      border: none;
-      box-sizing: border-box;
-    }
-    button {
-      background: #4CAF50;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    img, video {
-      margin-top: 20px;
-      width: 90%;
-      max-width: 800px;
-      border-radius: 10px;
-      background: #000;
-    }
-    #status {
-      margin-top: 15px;
-      font-size: 16px;
-      color: #ccc;
-      white-space: pre-line;
-    }
-    #debug {
-      margin-top: 20px;
-      text-align: left;
-      max-width: 900px;
-      margin-left: auto;
-      margin-right: auto;
-      background: #222;
-      padding: 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      color: #ddd;
-      white-space: pre-wrap;
-      overflow-x: auto;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>TweakAI Video Generator</title>
+<style>
+    body { font-family: Arial; padding: 20px; }
+    #video { margin-top: 20px; width: 100%; max-width: 720px; }
+</style>
 </head>
 <body>
 
-  <h1>Text → Bild → Video (Open Source Pipeline)</h1>
-  <p>
-    Diese Seite generiert zuerst ein Bild aus deinem Prompt und animiert es dann zu einem Video.<br>
-    Alles über öffentliche Hugging-Face-Spaces, ohne API-Key und ohne Server.
-  </p>
+<h2>TweakAI – Text‑to‑Video</h2>
 
-  <input id="prompt" placeholder="z.B. A cinematic sunrise over the ocean">
+<textarea id="prompt" rows="4" style="width:100%;" placeholder="Beschreibe dein Video..."></textarea>
+<br><br>
+<button onclick="generate()">Video generieren</button>
 
-  <button onclick="runPipeline()">Bild & Video generieren</button>
+<p id="status"></p>
+<video id="video" controls></video>
 
-  <div id="status"></div>
+<script>
+async function generate() {
+    const prompt = document.getElementById("prompt").value;
+    document.getElementById("status").innerText = "Sende Anfrage...";
 
-  <img id="previewImage" alt="Generiertes Bild" style="display:none;">
-  <video id="previewVideo" controls style="display:none;"></video>
+    // 1. Video-Generierung starten
+    const start = await fetch("https://api.tweakai.net/api/video/generate", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            prompt: prompt,
+            model: "veo-3",
+            duration: 8,
+            resolution: "1280x720"
+        })
+    });
 
-  <div id="debug"></div>
+    const startJson = await start.json();
+    const taskId = startJson.task_id;
 
-  <script>
-    // ==========================
-    // KONFIGURATION
-    // ==========================
-    // Text → Bild API (z.B. SDXL, FLUX, Stable Diffusion Space)
-    // Du kannst diese URLs anpassen/wechseln. Aktuell sind es BEISPIELE.
-    const TEXT2IMG_APIS = [
-      {
-        name: "Beispiel Stable Diffusion Text-zu-Bild Space",
-        url: "https://huggingface.co/spaces/stabilityai/stable-diffusion-xl-base-1.0/api/predict/",
-        note: "Passt data-Struktur bei Bedarf an."
-      }
-    ];
+    document.getElementById("status").innerText = "Task gestartet: " + taskId;
 
-    // Bild → Video API (z.B. AnimateDiff, Stable Video Diffusion)
-    const IMG2VIDEO_APIS = [
-      {
-        name: "Beispiel AnimateDiff / Bild -> Video Space",
-        url: "https://huggingface.co/spaces/guoyww/AnimateDiff/api/predict/",
-        note: "Benötigt evtl. andere data-Struktur."
-      }
-    ];
+    // 2. Task pollen, bis Video fertig ist
+    let videoUrl = null;
 
-    // ==========================
-    // HILFSFUNKTIONEN
-    // ==========================
+    while (!videoUrl) {
+        await new Promise(r => setTimeout(r, 3000));
 
-    function fetchWithTimeout(url, options = {}, timeout = 60000) {
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          reject(new Error("Timeout nach " + timeout / 1000 + " Sekunden"));
-        }, timeout);
+        const check = await fetch(`https://api.tweakai.net/api/video/task/${taskId}`);
+        const checkJson = await check.json();
 
-        fetch(url, options)
-          .then(res => {
-            clearTimeout(timer);
-            resolve(res);
-          })
-          .catch(err => {
-            clearTimeout(timer);
-            reject(err);
-          });
-      });
-    }
-
-    function appendDebug(log, text) {
-      return log + text + "\n";
-    }
-
-    // Parser für Bild aus einer typischen HF-Gradio-Response
-    function extractImageFromResult(result) {
-      // Wir versuchen mehrere Formate:
-      // - data[0] als URL
-      // - data[0].url
-      // - data[0] als base64
-      if (!result || !Array.isArray(result.data)) return null;
-      const d0 = result.data[0];
-
-      // Direkt String: könnte URL oder data:image/... sein
-      if (typeof d0 === "string") {
-        return d0;
-      }
-
-      // Objekt mit url-Feld
-      if (d0 && typeof d0.url === "string") {
-        return d0.url;
-      }
-
-      // Objekt mit image-Feld (Base64)
-      if (d0 && typeof d0.image === "string") {
-        return d0.image;
-      }
-
-      // Falls data[0] wieder ein Array ist:
-      if (Array.isArray(d0) && d0.length > 0) {
-        if (typeof d0[0] === "string") return d0[0];
-        if (d0[0] && typeof d0[0].url === "string") return d0[0].url;
-      }
-
-      return null;
-    }
-
-    // Parser für Video aus typischer HF-Gradio-Response
-    function extractVideoFromResult(result) {
-      // Versuche:
-      // - data[0] als URL
-      // - data[0].url
-      // - data[0].video[0]
-      if (!result || !Array.isArray(result.data)) return null;
-      const d0 = result.data[0];
-
-      if (typeof d0 === "string") {
-        return d0;
-      }
-      if (d0 && typeof d0.url === "string") {
-        return d0.url;
-      }
-      if (d0 && Array.isArray(d0.video) && d0.video.length > 0) {
-        return d0.video[0];
-      }
-
-      if (Array.isArray(d0) && d0.length > 0) {
-        if (typeof d0[0] === "string") return d0[0];
-        if (d0[0] && typeof d0[0].url === "string") return d0[0].url;
-      }
-
-      return null;
-    }
-
-    // ==========================
-    // PIPELINE
-    // ==========================
-
-    async function runPipeline() {
-      const promptEl = document.getElementById("prompt");
-      const status = document.getElementById("status");
-      const img = document.getElementById("previewImage");
-      const vid = document.getElementById("previewVideo");
-      const debug = document.getElementById("debug");
-
-      const prompt = promptEl.value.trim();
-      if (!prompt) {
-        status.innerText = "Bitte gib einen Prompt ein.";
-        return;
-      }
-
-      img.style.display = "none";
-      vid.style.display = "none";
-      img.src = "";
-      vid.src = "";
-      status.innerText = "Starte Pipeline: Text → Bild → Video...";
-      let debugLog = "";
-
-      // ==========================
-      // Schritt 1: TEXT → BILD
-      // ==========================
-
-      let imageDataUrl = null;
-      let imageApiUsed = null;
-
-      debugLog = appendDebug(debugLog, "=== SCHRITT 1: TEXT → BILD ===");
-      debugLog = appendDebug(debugLog, "Prompt: " + prompt + "\n");
-
-      for (const api of TEXT2IMG_APIS) {
-        debugLog = appendDebug(debugLog, "Teste Text→Bild-API: " + api.name);
-        debugLog = appendDebug(debugLog, "URL: " + api.url);
-        debugLog = appendDebug(debugLog, "Hinweis: " + api.note + "\n");
-
-        status.innerText = "Text → Bild mit:\n" + api.name;
-
-        // Standard-Gradio-Body: data: [prompt]
-        const body = {
-          data: [prompt]
-        };
-
-        try {
-          const res = await fetchWithTimeout(api.url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          }, 90000);
-
-          const rawText = await res.text();
-          debugLog = appendDebug(debugLog, "HTTP-Status: " + res.status + " " + res.statusText);
-          debugLog = appendDebug(debugLog, "Response-Body:");
-          debugLog = appendDebug(debugLog, rawText + "\n");
-
-          if (!res.ok) {
-            debugLog = appendDebug(debugLog, "=> API-Fehlerstatus, weiter zur nächsten Text→Bild-API.\n");
-            continue;
-          }
-
-          let json;
-          try {
-            json = JSON.parse(rawText);
-          } catch (e) {
-            debugLog = appendDebug(debugLog, "=> JSON-Parse-Fehler: " + e.message + "\n");
-            continue;
-          }
-
-          const imgUrlOrData = extractImageFromResult(json);
-          if (!imgUrlOrData) {
-            debugLog = appendDebug(debugLog, "=> Keine erkennbare Bild-URL/Base64 im Ergebnis gefunden.\n");
-            continue;
-          }
-
-          debugLog = appendDebug(debugLog, "=> Erfolgreich Bild erhalten: " + imgUrlOrData + "\n");
-          imageApiUsed = api.name;
-
-          // Falls es "nackte" Base64 ist, prefix ergänzen
-          if (imgUrlOrData.startsWith("data:image/")) {
-            imageDataUrl = imgUrlOrData;
-          } else if (imgUrlOrData.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
-            // grobe Heuristik für nackte Base64
-            imageDataUrl = "data:image/png;base64," + imgUrlOrData;
-          } else {
-            // wir nehmen an, es ist eine URL
-            imageDataUrl = imgUrlOrData;
-          }
-
-          img.src = imageDataUrl;
-          img.style.display = "block";
-          status.innerText = "Schritt 1 fertig (Text → Bild) mit:\n" + api.name + "\nStarte Schritt 2 (Bild → Video)...";
-          break;
-        } catch (err) {
-          debugLog = appendDebug(debugLog, "=> Fetch-Fehler bei Text→Bild-API: " + err.message + "\n");
+        if (checkJson.status === "completed") {
+            videoUrl = checkJson.video_url;
+        } else {
+            document.getElementById("status").innerText = "Warte auf Video...";
         }
-      }
-
-      if (!imageDataUrl) {
-        status.innerText = "Schritt 1 (Text → Bild) ist bei allen APIs fehlgeschlagen.\nSiehe Debug-Logs.";
-        debug.innerText = debugLog;
-        return;
-      }
-
-      // ==========================
-      // Schritt 2: BILD → VIDEO
-      // ==========================
-
-      let videoUrl = null;
-      let videoApiUsed = null;
-
-      debugLog = appendDebug(debugLog, "=== SCHRITT 2: BILD → VIDEO ===");
-      debugLog = appendDebug(debugLog, "Genutztes Bild (URL/Base64): " + imageDataUrl + "\n");
-
-      for (const api of IMG2VIDEO_APIS) {
-        debugLog = appendDebug(debugLog, "Teste Bild→Video-API: " + api.name);
-        debugLog = appendDebug(debugLog, "URL: " + api.url);
-        debugLog = appendDebug(debugLog, "Hinweis: " + api.note + "\n");
-
-        status.innerText = "Bild → Video mit:\n" + api.name;
-
-        // HINWEIS: Die Struktur von data hängt vom konkreten Space ab.
-        // Viele Bild→Video-Spaces erwarten:
-        // data: [imageDataUrl, weitere Parameter...]
-        const body = {
-          data: [imageDataUrl]
-        };
-
-        try {
-          const res = await fetchWithTimeout(api.url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          }, 120000);
-
-          const rawText = await res.text();
-          debugLog = appendDebug(debugLog, "HTTP-Status: " + res.status + " " + res.statusText);
-          debugLog = appendDebug(debugLog, "Response-Body:");
-          debugLog = appendDebug(debugLog, rawText + "\n");
-
-          if (!res.ok) {
-            debugLog = appendDebug(debugLog, "=> API-Fehlerstatus, weiter zur nächsten Bild→Video-API.\n");
-            continue;
-          }
-
-          let json;
-          try {
-            json = JSON.parse(rawText);
-          } catch (e) {
-            debugLog = appendDebug(debugLog, "=> JSON-Parse-Fehler: " + e.message + "\n");
-            continue;
-          }
-
-          const vidUrl = extractVideoFromResult(json);
-          if (!vidUrl) {
-            debugLog = appendDebug(debugLog, "=> Keine erkennbare Video-URL/Base64 im Ergebnis gefunden.\n");
-            continue;
-          }
-
-          debugLog = appendDebug(debugLog, "=> Erfolgreich Video erhalten: " + vidUrl + "\n");
-          videoUrl = vidUrl;
-          videoApiUsed = api.name;
-          break;
-        } catch (err) {
-          debugLog = appendDebug(debugLog, "=> Fetch-Fehler bei Bild→Video-API: " + err.message + "\n");
-        }
-      }
-
-      if (!videoUrl) {
-        status.innerText = "Schritt 2 (Bild → Video) ist bei allen APIs fehlgeschlagen.\nBild wurde erfolgreich generiert, aber Video nicht.\nSiehe Debug-Logs.";
-        debug.innerText = debugLog;
-        return;
-      }
-
-      // Wenn wir hier sind, haben wir ein Video
-      vid.src = videoUrl;
-      vid.style.display = "block";
-      status.innerText =
-        "FERTIG!\n\n" +
-        "Text → Bild via: " + imageApiUsed + "\n" +
-        "Bild → Video via: " + videoApiUsed + "\n\n" +
-        "Video unten ansehen.";
-      debug.innerText = debugLog;
     }
-  </script>
+
+    // 3. Video anzeigen
+    document.getElementById("status").innerText = "Video fertig!";
+    document.getElementById("video").src = videoUrl;
+}
+</script>
 
 </body>
 </html>
